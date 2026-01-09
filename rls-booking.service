@@ -1,0 +1,24 @@
+[Unit]
+Description=RSL Booking Automation Service
+After=network.target
+
+[Service]
+# user running the script
+User=ai
+Group=ai
+
+# Set the working directory so .env is found
+WorkingDirectory=/home/ai/github/rsl_booking
+
+# Use the python executable from your uv virtual environment
+ExecStart=/home/ai/github/rsl_booking/.venv/bin/python /home/ai/github/rsl_booking/booker.py
+
+# Restart automatically if it crashes
+Restart=always
+RestartSec=10
+
+# Environment variables (optional, if distinct from .env)
+# Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
