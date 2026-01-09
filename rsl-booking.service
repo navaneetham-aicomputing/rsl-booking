@@ -8,14 +8,16 @@ User=ai
 Group=ai
 
 # Set the working directory so .env is found
-WorkingDirectory=/home/ai/github/rsl_booking
+WorkingDirectory=/home/ai/github/rsl-booking
+
+# Use the environment file
+EnvironmentFile=/home/ai/github/rsl-booking/.env
 
 # Use the python executable from your uv virtual environment
-ExecStart=/home/ai/github/rsl_booking/.venv/bin/python /home/ai/github/rsl_booking/booker.py
+ExecStart=/home/ai/github/rsl-booking/.venv/bin/python /home/ai/github/rsl-booking/booker.py
 
-# Restart automatically if it crashes
-Restart=always
-RestartSec=10
+# Do not restart after completion
+Restart=no
 
 # Environment variables (optional, if distinct from .env)
 # Environment=PYTHONUNBUFFERED=1

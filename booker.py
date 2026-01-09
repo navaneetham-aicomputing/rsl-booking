@@ -1,4 +1,5 @@
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from apscheduler.schedulers.blocking import BlockingScheduler
 import pydantic
 from playwright.sync_api import Playwright, sync_playwright, expect, Page
@@ -10,8 +11,7 @@ dotenv.load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 
-# todo: change this to 9
-HOW_DAYS_AHEAD =8
+HOW_DAYS_AHEAD = 9
 
 class Membership(pydantic.BaseModel):
     name: str
@@ -114,7 +114,7 @@ def find_available_slot_to_book(page: Page, booking_time: time, slot_id: int) ->
     
     # Calculate row index (adding 1 assuming the first row is header or offset)
     row_index = get_hours_difference(start_time, booking_time) + 1
-    print(f"Targeting Row Index: {row_index} (Time: {booking_time})")
+    logging.info(f"Targeting Row Index: {row_index} (Time: {booking_time})")
 
     # Locate the rows within the grid
     rows = get_time_slot_root(page).locator("tbody > tr")
@@ -140,7 +140,6 @@ def find_available_slot_to_book(page: Page, booking_time: time, slot_id: int) ->
 
 def book(page: Page, available_slot: str) -> None:
     page.locator(f"input[name=\"{available_slot}\"]").click()
-    print("Booked the slot")
     page.get_by_role("button", name="Book").click()
     return
 
@@ -152,7 +151,7 @@ def run(playwright: Playwright, booking_time: BookingTime) -> None:
     try:
         logging.info(f"Booking for {booking_time.membership.name} at {booking_time.time_slot}")
 
-        browser = playwright.chromium.launch(headless=False)
+        browser = playwright.chromium.launch(headless=True)
         context = browser.new_context()
         page = context.new_page()
         page.goto("https://rslonline.leisurecloud.net/Connect/mrmLogin.aspx")
@@ -180,21 +179,38 @@ def run(playwright: Playwright, booking_time: BookingTime) -> None:
         logging.error(f"Error: {e}")
         exit()
 
-def main():
+def run_with_playwright(booking_time: BookingTime) -> None:
     with sync_playwright() as playwright:
-        last_booking_day = get_last_booking_day(HOW_DAYS_AHEAD)
-        if last_booking_day not in Days:
-            logging.info(f"No booking for {last_booking_day}")
-            return
-        
-        for booking_time in Days.get(last_booking_day):
-            run(playwright, booking_time)
-    
+        run(playwright, booking_time)
+
+def main():
+    last_booking_day = get_last_booking_day(HOW_DAYS_AHEAD)
+    if last_booking_day not in Days:
+        logging.info(f"No booking for {last_booking_day}")
+        return
+
+    booking_times = Days.get(last_booking_day)
+
+    with ThreadPoolExecutor(max_workers=len(booking_times)) as executor:
+        futures = {
+            executor.submit(run_with_playwright, booking_time): booking_time
+            for booking_time in booking_times
+        }
+
+        for future in as_completed(futures):
+            booking_time = futures[future]
+            try:
+                future.result()
+                logging.info(f"Completed booking for {booking_time.membership.name} at {booking_time.time_slot}")
+            except Exception as e:
+                logging.error(f"Failed booking for {booking_time.membership.name} at {booking_time.time_slot}: {e}")
+
 def main_job():
     logging.info("Starting scheduled booking job...")
     main()
 
 if __name__ == "__main__":
+    '''
     main()
     '''
     scheduler = BlockingScheduler()
@@ -206,4 +222,4 @@ if __name__ == "__main__":
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
         pass
-    '''
+
