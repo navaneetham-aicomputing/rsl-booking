@@ -1,5 +1,5 @@
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from multiprocessing import Pool
 from apscheduler.schedulers.blocking import BlockingScheduler
 import pydantic
 from playwright.sync_api import Playwright, sync_playwright, expect, Page
@@ -63,10 +63,10 @@ Sunday = WeekEnds
 
 Days = {
     "Monday": Monday,
-    #"Tuesday": Tuesday,
+    "Tuesday": Tuesday,
     "Wednesday": Wednesday,
-    #"Thursday": Thursday,
-    #"Friday": Friday,
+    "Thursday": Thursday,
+    "Friday": Friday,
     "Saturday": Saturday,
     "Sunday": Sunday,
 }
@@ -143,13 +143,15 @@ def book(page: Page, available_slot: str) -> None:
     page.get_by_role("button", name="Book").click()
     return
 
-def get_last_booking_day(days_ahead: int) -> date:
+def get_last_booking_day(days_ahead: int) -> str:
     last_booking_day = date.today() + timedelta(days=days_ahead)
+    logging.info(f"Try to book for: {last_booking_day}")
     return last_booking_day.strftime('%A')
 
 def run(playwright: Playwright, booking_time: BookingTime) -> None:
     try:
-        logging.info(f"Booking for {booking_time.membership.name} at {booking_time.time_slot}")
+        name = booking_time.membership.name
+        logging.info(f"Booking for {name} at {booking_time.time_slot}")
 
         browser = playwright.chromium.launch(headless=True)
         context = browser.new_context()
@@ -158,7 +160,7 @@ def run(playwright: Playwright, booking_time: BookingTime) -> None:
 
         # Login to the website
         login(page, booking_time.membership)
-        logging.info(f"Logged in as {booking_time.membership.name}")
+        logging.info(f"Logged in as {name}")
 
         # Navigate to the latest booking date
         goto_latest_booking_date(page, HOW_DAYS_AHEAD)
@@ -166,24 +168,24 @@ def run(playwright: Playwright, booking_time: BookingTime) -> None:
 
         # Find available slot to book
         available_slot = find_available_slot_to_book(page, booking_time.time_slot, booking_time.slot_id)
-        logging.info(f"Found available slot to book")
+        logging.info(f"Found available slot to book for: {name} at {booking_time.time_slot}")
 
         # Book the slot
         book(page, available_slot)
-        logging.info(f"Booked the slot")
+        logging.info(f"Booked the slot for: {name} at {booking_time.time_slot}")
 
         # ---------------------
         context.close()
         browser.close()
     except Exception as e:
-        logging.error(f"Error: {e}")
-        exit()
+        logging.error(f"Error while booking for {name} at {booking_time.time_slot} due to {e}")
 
 def run_with_playwright(booking_time: BookingTime) -> None:
     with sync_playwright() as playwright:
         run(playwright, booking_time)
 
 def main():
+    logging.info("........................ START .......................................")
     last_booking_day = get_last_booking_day(HOW_DAYS_AHEAD)
     if last_booking_day not in Days:
         logging.info(f"No booking for {last_booking_day}")
@@ -191,19 +193,19 @@ def main():
 
     booking_times = Days.get(last_booking_day)
 
-    with ThreadPoolExecutor(max_workers=len(booking_times)) as executor:
-        futures = {
-            executor.submit(run_with_playwright, booking_time): booking_time
-            for booking_time in booking_times
-        }
+    with Pool(processes=len(booking_times)) as pool:
+        results = []
+        for booking_time in booking_times:
+            result = pool.apply_async(run_with_playwright, (booking_time,))
+            results.append((booking_time, result))
 
-        for future in as_completed(futures):
-            booking_time = futures[future]
+        for booking_time, result in results:
             try:
-                future.result()
+                result.get()
                 logging.info(f"Completed booking for {booking_time.membership.name} at {booking_time.time_slot}")
             except Exception as e:
                 logging.error(f"Failed booking for {booking_time.membership.name} at {booking_time.time_slot}: {e}")
+    logging.info("........................ END .......................................")
 
 def main_job():
     logging.info("Starting scheduled booking job...")
