@@ -25,7 +25,9 @@ class BookingTime(pydantic.BaseModel):
 
 Bhu = Membership(name=os.getenv("BHU_NAME"), email=os.getenv("BHU_EMAIL"), password=os.getenv("BHU_PASSWORD"))
 Pon = Membership(name=os.getenv("PON_NAME"), email=os.getenv("PON_EMAIL"), password=os.getenv("PON_PASSWORD"))
+Raja = Membership(name=os.getenv("RAJA_NAME"), email=os.getenv("RAJA_EMAIL"), password=os.getenv("RAJA_PASSWORD"))
 
+WEEK_DAY_SLOT_0 = time(19, 0)
 WEEK_DAY_SLOT_1 = time(20, 0)
 WEEK_DAY_SLOT_2 = time(21, 0)
 
@@ -37,6 +39,10 @@ WeekDays = [
     # Pon
     BookingTime(membership=Pon, time_slot=WEEK_DAY_SLOT_1, slot_id=2),
     BookingTime(membership=Pon, time_slot=WEEK_DAY_SLOT_2, slot_id=2),
+
+    # Raja
+    BookingTime(membership=Raja, time_slot=WEEK_DAY_SLOT_0, slot_id=3), # 7pm slot
+    BookingTime(membership=Raja, time_slot=WEEK_DAY_SLOT_1, slot_id=3), # 8pm slot
 ]
 
 WEEK_END_SLOT_1 = time(8, 0)
