@@ -26,16 +26,19 @@ class BookingTime(pydantic.BaseModel):
 Bhu = Membership(name=os.getenv("BHU_NAME"), email=os.getenv("BHU_EMAIL"), password=os.getenv("BHU_PASSWORD"))
 Pon = Membership(name=os.getenv("PON_NAME"), email=os.getenv("PON_EMAIL"), password=os.getenv("PON_PASSWORD"))
 Raja = Membership(name=os.getenv("RAJA_NAME"), email=os.getenv("RAJA_EMAIL"), password=os.getenv("RAJA_PASSWORD"))
+Sree = Membership(name=os.getenv("SREE_NAME"), email=os.getenv("SREE_EMAIL"), password=os.getenv("SREE_PASSWORD"))
 
 WEEK_DAY_SLOT_0 = time(19, 0)
 WEEK_DAY_SLOT_1 = time(20, 0)
 WEEK_DAY_SLOT_2 = time(21, 0)
+WEEK_DAY_SLOT_3 = time(22, 0)
 
 WeekDays = [
+
     # Bhuvanesh
     BookingTime(membership=Bhu, time_slot=WEEK_DAY_SLOT_1, slot_id=1),
     BookingTime(membership=Bhu, time_slot=WEEK_DAY_SLOT_2, slot_id=1),
-    
+
     # Pon
     BookingTime(membership=Pon, time_slot=WEEK_DAY_SLOT_1, slot_id=2),
     BookingTime(membership=Pon, time_slot=WEEK_DAY_SLOT_2, slot_id=2),
@@ -43,6 +46,10 @@ WeekDays = [
     # Raja
     BookingTime(membership=Raja, time_slot=WEEK_DAY_SLOT_0, slot_id=3), # 7pm slot
     BookingTime(membership=Raja, time_slot=WEEK_DAY_SLOT_1, slot_id=3), # 8pm slot
+
+    # Sree
+    BookingTime(membership=Sree, time_slot=WEEK_DAY_SLOT_0, slot_id=3),  # 7pm slot
+    BookingTime(membership=Sree, time_slot=WEEK_DAY_SLOT_1, slot_id=3),  # 8pm slot
 ]
 
 WEEK_END_SLOT_1 = time(8, 0)
@@ -84,7 +91,11 @@ def login(page: Page, membership: Membership) -> None:
     page.get_by_role("textbox", name="Password").click()
     page.get_by_role("textbox", name="Password").fill(membership.password)
     page.get_by_role("button", name="Login").click()
-    page.locator("#ctl00_MainContent__advanceSearchResultsUserControl_Activities_ctrl1_lnkActivitySelect_lg").click()
+
+    # Wait for the activity link to be visible before clicking (with increased timeout)
+    activity_link = page.locator("#ctl00_MainContent__advanceSearchResultsUserControl_Activities_ctrl7_lnkActivitySelect_lg")
+    expect(activity_link).to_be_visible(timeout=60000)
+    activity_link.click()
 
 
 def goto_latest_booking_date(page: Page, days_ahead: int) -> None:
@@ -159,7 +170,7 @@ def run(playwright: Playwright, booking_time: BookingTime) -> None:
         name = booking_time.membership.name
         logging.info(f"Booking for {name} at {booking_time.time_slot}")
 
-        browser = playwright.chromium.launch(headless=True)
+        browser = playwright.chromium.launch(headless=False)
         context = browser.new_context()
         page = context.new_page()
         page.goto("https://rslonline.leisurecloud.net/Connect/mrmLogin.aspx")
@@ -201,7 +212,10 @@ def main():
 
     with Pool(processes=len(booking_times)) as pool:
         results = []
-        for booking_time in booking_times:
+        for i, booking_time in enumerate(booking_times):
+            if i > 0:
+                import time as time_module
+                time_module.sleep(0.5)  # Stagger requests by 0.5 seconds to avoid overwhelming the server
             result = pool.apply_async(run_with_playwright, (booking_time,))
             results.append((booking_time, result))
 
@@ -223,8 +237,8 @@ if __name__ == "__main__":
     '''
     scheduler = BlockingScheduler()
     # Schedule the job to run every day at 00:01
-    scheduler.add_job(main_job, 'cron', hour=0, minute=1)
-    logging.info("Scheduler started. Waiting for 00:01 to run booking job...")
+    scheduler.add_job(main_job, 'cron', hour=0, minute=0, second=5)
+    logging.info("Scheduler started. Waiting for 00:00:05 to run booking job...")
     
     try:
         scheduler.start()
