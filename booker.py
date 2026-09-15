@@ -238,7 +238,7 @@ if __name__ == "__main__":
     scheduler = BlockingScheduler()
     # Schedule the job to run every day at 00:01
     scheduler.add_job(main_job, 'cron', hour=0, minute=0, second=5)
-    logging.info("Scheduler started. Waiting for 00:00:05 to run booking job...")
+    logging.info("Scheduler started. Waiting for 00:00:05 to run booking job: Version 1.1")
     
     try:
         scheduler.start()
